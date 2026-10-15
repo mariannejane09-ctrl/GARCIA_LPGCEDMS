@@ -1,11 +1,16 @@
 package com.scc;
 import java.util.Scanner;
-import com.scc.dao.userDao;
+import com.scc.dao.UserDao;
+import com.scc.model.User;
+import com.scc.ui.AdminMenu;
+import com.scc.ui.MaintenanceMenu;
+import com.scc.ui.StaffMenu;
+
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
     private static final Scanner sc = new Scanner(System.in);
-    private static final userDao userDao = new userDao();
+    private static final UserDao userDao = new UserDao();
     public static void main(String[] args){
 
         while (true) {
@@ -22,6 +27,7 @@ public class Main {
 
             switch (choice) {
                 case "1":
+                    handleLogin();
                     break;
                 case "2":
                     System.out.print("Enter Username: ");
@@ -31,7 +37,7 @@ public class Main {
                     System.out.print("Enter password: ");
                     String password = sc.nextLine();
                     System.out.print("Enter contact no.: ");
-                    int contact = Integer.parseInt(sc.nextLine());
+                    String contact = sc.nextLine();
 
                     System.out.print("Select role: [1] ADMIN | [2] STAFF | [3] MAINTENANCE: ");
 
@@ -63,6 +69,25 @@ public class Main {
                     return;
                 default:
                     System.out.println("Invalid option! Please try again");
+            }
+        }
+    }
+
+    private static void handleLogin(){
+        System.out.print("Enter username: ");
+        String username = sc.nextLine();
+        System.out.print("Enter password: ");
+        String password = sc.nextLine();
+
+        User user = userDao.login(username, password);
+
+        if(user != null){
+            System.out.println("\n WELCOME: "+user.name()+" | ROLE: "+user.role());
+            switch(user.role()){
+                case "ADMIN" -> new AdminMenu(userDao, sc).display(user);
+                case "STAFF" -> new StaffMenu(userDao, sc).display(user);
+                case "MAINTENANCE" -> new MaintenanceMenu(userDao, sc).display(user);
+                default -> System.out.println("Account roles not found!");
             }
         }
     }
