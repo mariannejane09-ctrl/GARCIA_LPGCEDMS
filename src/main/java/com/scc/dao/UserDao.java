@@ -3,6 +3,8 @@ package com.scc.dao;
 import com.scc.model.User;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDao {
 
@@ -84,6 +86,31 @@ public class UserDao {
                 System.err.println("Error during login: " + e.getMessage());
             }
             return null;
+        }
+
+        public List<User> getAllUser(){
+            List<User> usersList = new ArrayList<>();
+            String sql = "SELECT user_id, username, name, password, contact, role, status FROM users";
+
+            try(Connection conn = DatabaseConnection.getConnection();
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql)){
+
+                while (rs.next()){
+                    usersList.add(new User(
+                            rs.getInt("user_id"),
+                            rs.getString("username"),
+                            rs.getString("name"),
+                            rs.getString("password"),
+                            rs.getString("contact"),
+                            rs.getString("role"),
+                            rs.getString("status")
+                    ));
+                }
+            } catch (SQLException e) {
+                System.out.println("Error fetching all users: " + e.getMessage());
+            }
+            return usersList;
         }
     }
 
