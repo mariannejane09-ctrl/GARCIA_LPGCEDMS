@@ -57,6 +57,7 @@ public class AdminMenu {
                             case "1" -> viewALlUser();
                             case "2" -> viewPendingUsers();
                             case "3" -> approvedUser();
+                            case "5" -> updateUser(admin);
                             case "7" ->  {
                                 manageUsers = false;
                                 System.out.println("Returning to Admin Main Menu...");
@@ -130,4 +131,82 @@ public class AdminMenu {
 
         userDao.approveUser(userId);
     }
+
+    private void updateUser(User currentAdmin) {
+        List<User> users = userDao.getAllUser();
+        displayUserTable(users, "SELECT USER TO UPDATE");
+
+        if (users.isEmpty()) {
+            return;
+        }
+
+        int userId = readIntInput("Enter selected ID to update (or 0 to cancel): ");
+        if (userId == 0) {
+            System.out.println(" -> Operation Cancelled.");
+            return;
+        }
+
+        if (userId == currentAdmin.user_id()) {
+            System.out.println(" -> [WARNING] Modifying current active Admin is restricted");
+        }
+
+        String newRole = readValidRole();
+        if (newRole == null) {
+            System.out.println(" ->Operation Cancelled.");
+            return;
+        }
+
+        String newStatus = readValidStatus();
+        if (newStatus == null) {
+            System.out.println(" ->Operation Cancelled.");
+            return;
+        }
+
+        userDao.updateUserAndStatus(userId, newRole, newStatus);
+    }
+
+    private String readValidRole(){
+        while(true) {
+            System.out.print("Enter Role (ADMIN / STAFF / MAINTENANCE) [0 to cancel]: ");
+            String role = scanner.nextLine().trim().toUpperCase();
+                if (role.equals("0") || role.equals("CANCEL")) {
+                    return null;
+                }
+
+                if (role.equals("ADMIN") || role.equals("STAFF") || role.equals("MAINTENANCE")) {
+                    return role;
+                }
+                System.out.println(" ->[ERROR] Invalid Role.");
+            }
+        }
+
+
+    private String readValidStatus() {
+        while (true) {
+            System.out.print("Enter Status (APPROVED / PENDING) [0 to cancel]: ");
+            String status = scanner.nextLine().trim().toUpperCase();
+            if (status.equals("0") || status.equals("CANCEL")) {
+                return null;
+            }
+
+            if (status.equals("APPROVED") || status.equals("PENDING")) {
+                return status;
+            }
+
+            System.out.println("-> [ERROR] Invalid status. Must be APPROVED or PENDING.");
+        }
+    }
+
+    private int readIntInput(String prompt) {
+         while (true) {
+              System.out.print(prompt);
+              String input = scanner.nextLine().trim();
+              try {
+                   return Integer.parseInt(input);
+              } catch (NumberFormatException e) {
+                   System.out.println("-> [ERROR] Please enter a valid numeric ID.");
+              }
+         }
+    }
 }
+
