@@ -4,9 +4,11 @@ import com.scc.dao.UserDao;
 import com.scc.model.User;
 
 import java.util.Scanner;
+import com.scc.dao.ActivityLogDao;
 
 public class Authentication {
     private final UserDao userDao;
+    private final ActivityLogDao activityLogDao = new ActivityLogDao();
     private Scanner sc;
 
     public Authentication(UserDao userDao, Scanner sc){
@@ -85,7 +87,16 @@ public class Authentication {
         User user = userDao.login(username, password);
 
         if(user != null){
+
+            // Record successful login
+            activityLogDao.logAction(
+                    user.user_id(),
+                    "LOGIN",
+                    "User " + user.username() + " (ID: " + user.user_id() + ") logged in."
+            );
+
             System.out.println("\n WELCOME: "+user.name()+" | ROLE: "+user.role());
+
             switch(user.role()){
                 case "ADMIN" -> new AdminMenu(userDao, sc).display(user);
                 case "STAFF" -> new StaffMenu(userDao, sc).display(user);
