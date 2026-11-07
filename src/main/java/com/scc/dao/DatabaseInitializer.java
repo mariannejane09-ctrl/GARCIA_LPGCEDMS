@@ -31,7 +31,7 @@ public class DatabaseInitializer {
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id)
                         REFERENCES users(user_id)
-                        ON DELETE SET NULL
+                        ON DELETE CASCADE
                 )
                 """;
 
@@ -129,20 +129,12 @@ public class DatabaseInitializer {
             ADD COLUMN deposit_paid REAL DEFAULT 0
             """);
 
-                    System.out.println("Deposit column added successfully.");
+
 
                 } catch (SQLException e) {
                     if (!e.getMessage().contains("duplicate column name")) {
                         throw e;
                     }
-            }
-            // Check existing cylinder columns
-            try (ResultSet rs = stmt.executeQuery(
-                    "PRAGMA table_info(lpg_cylinders)")) {
-
-                while (rs.next()) {
-                    System.out.println(rs.getString("name"));
-                }
             }
 
             stmt.execute(createTransactionsTable);

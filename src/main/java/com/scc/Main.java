@@ -17,12 +17,17 @@ public class Main {
         CylinderDao cylinderDao = new CylinderDao();
         cylinderDao.initializeInventory();
 
+
         Scanner scanner = new Scanner(System.in);
         UserDao userDao = new UserDao();
+
 
         Authentication auth = new Authentication(userDao, scanner);
         auth.start();
         scanner.close();
+
+
+
     }
 
 

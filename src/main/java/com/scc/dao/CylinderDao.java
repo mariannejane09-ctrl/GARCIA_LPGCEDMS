@@ -26,7 +26,6 @@ public class CylinderDao {
                  ResultSet rs = countStmt.executeQuery()) {
 
                 if (rs.next() && rs.getInt(1) > 0) {
-                    System.out.println("Inventory already exists.");
                     return;
                 }
             }
@@ -216,6 +215,125 @@ public class CylinderDao {
         } catch (SQLException e) {
             System.err.println("Error retrieving customer cylinders: "
                     + e.getMessage());
+        }
+
+        return cylinders;
+    }
+
+    public List<Cylinder> getCylindersForMaintenance() {
+
+        List<Cylinder> cylinders = new ArrayList<>();
+
+        String sql = """
+            SELECT *
+            FROM lpg_cylinders
+            WHERE condition = 'NEEDS MAINTENANCE'
+              AND status = 'MAINTENANCE'
+            ORDER BY cylinder_id ASC
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                cylinders.add(new Cylinder(
+                        rs.getInt("cylinder_id"),
+                        (Integer) rs.getObject("customer_id"),
+                        rs.getString("size"),
+                        rs.getDouble("price"),
+                        rs.getString("condition"),
+                        rs.getString("status"),
+                        rs.getDouble("deposit_paid")
+                ));
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error retrieving maintenance cylinders: " + e.getMessage());
+        }
+
+        return cylinders;
+    }
+
+    public boolean updateCylinderMaintenanceStatus(
+            int cylinderId,
+            String condition,
+            String status) {
+
+        String sql = """
+            UPDATE lpg_cylinders
+            SET condition = ?, status = ?
+            WHERE cylinder_id = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, condition);
+            pstmt.setString(2, status);
+            pstmt.setInt(3, cylinderId);
+
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.out.println("Error updating cylinder: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean releaseCylinder(int cylinderId) {
+
+        String sql = """
+            UPDATE lpg_cylinders
+            SET status = 'AVAILABLE'
+            WHERE cylinder_id = ?
+              AND condition = 'GOOD'
+              AND status = 'MAINTENANCE'
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, cylinderId);
+
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.out.println("Error releasing cylinder: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public List<Cylinder> getCylindersForRelease() {
+
+        List<Cylinder> cylinders = new ArrayList<>();
+
+        String sql = """
+            SELECT *
+            FROM lpg_cylinders
+            WHERE condition = 'GOOD'
+              AND status = 'MAINTENANCE'
+            ORDER BY cylinder_id ASC
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                cylinders.add(new Cylinder(
+                        rs.getInt("cylinder_id"),
+                        (Integer) rs.getObject("customer_id"),
+                        rs.getString("size"),
+                        rs.getDouble("price"),
+                        rs.getString("condition"),
+                        rs.getString("status"),
+                        rs.getDouble("deposit_paid")
+                ));
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error retrieving cylinders for release: " + e.getMessage());
         }
 
         return cylinders;

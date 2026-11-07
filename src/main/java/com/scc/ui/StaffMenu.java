@@ -44,17 +44,6 @@ public class StaffMenu {
             System.out.println("===========================");
             System.out.print("Enter Choice: ");
             String choice = scanner.nextLine().trim();
-            if (choice.equals("7")) {
-
-                activityLogDao.logAction(
-                        staff.user_id(),
-                        "LOGOUT",
-                        "User " + staff.username() + " (ID: " + staff.user_id() + ") logged out."
-                );
-
-                loggedIn = false;
-                System.out.println("Logging out...");
-            }
 
             switch (choice) {
 
@@ -75,7 +64,7 @@ public class StaffMenu {
                     break;
 
                 case "5":
-                    // Return Cylinder
+                    returnCylinder(staff);
                     break;
 
                 case "6":
@@ -285,6 +274,8 @@ public class StaffMenu {
                 staff.user_id(),
                 cylinderIds
         );
+
+
     }
 
     private void viewTransactions() {
@@ -555,6 +546,103 @@ public class StaffMenu {
         } else {
 
             System.out.println("\nExchange failed. No changes were saved.");
+        }
+    }
+
+    private void returnCylinder(User staff) {
+
+        System.out.println("\n===== RETURN LPG CYLINDER =====");
+
+        // Display registered customers
+        List<Customer> customers = new ArrayList<>();
+
+        for (Customer customer : customerDao.getAllCustomers()) {
+            if (!cylinderDao.getCustomerCylinders(customer.customer_id()).isEmpty()) {
+                customers.add(customer);
+            }
+        }
+
+        if (customers.isEmpty()) {
+            System.out.println("No registered customers found.");
+            return;
+        }
+
+        System.out.printf("%-5s | %-20s | %-15s%n",
+                "ID", "NAME", "CONTACT");
+
+        System.out.println("---------------------------------------------");
+
+        for (Customer customer : customers) {
+            System.out.printf("%-5d | %-20s | %-15s%n",
+                    customer.customer_id(),
+                    customer.name(),
+                    customer.contact());
+        }
+
+        System.out.print("\nEnter Customer ID: ");
+        int customerId = scanner.nextInt();
+        scanner.nextLine();
+
+        List<Cylinder> cylinders = cylinderDao.getCustomerCylinders(customerId);
+
+        if (cylinders.isEmpty()) {
+            System.out.println("This customer has no assigned cylinders to return.");
+            return;
+        }
+
+        System.out.println("\n===== CUSTOMER'S CYLINDERS =====");
+
+        System.out.printf("%-10s | %-10s | %-15s | %-12s%n",
+                "CYLINDER ID", "SIZE", "CONDITION", "DEPOSIT");
+
+        System.out.println("------------------------------------------------------");
+
+        for (Cylinder cylinder : cylinders) {
+            System.out.printf("%-10d | %-10s | %-15s | ₱%-11.2f%n",
+                    cylinder.cylinder_id(),
+                    cylinder.size(),
+                    cylinder.condition(),
+                    cylinder.deposit_paid());
+        }
+
+        System.out.print("\nEnter Cylinder ID to return: ");
+        int cylinderId = scanner.nextInt();
+
+        scanner.nextLine(); // Consume leftover newline
+
+// Check if the selected cylinder belongs to this customer
+        boolean found = false;
+
+        for (Cylinder cylinder : cylinders) {
+            if (cylinder.cylinder_id() == cylinderId) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            System.out.println("Invalid Cylinder ID. Please select from the list.");
+            return;
+        }
+
+        System.out.print("\nAre you sure you want to return this cylinder? (Y/N): ");
+        String confirm = scanner.nextLine().trim();
+
+        if (!confirm.equalsIgnoreCase("Y")) {
+            System.out.println("Cylinder return cancelled.");
+            return;
+        }
+
+        boolean success = transactionDao.processReturn(
+                customerId,
+                staff.user_id(),
+                cylinderId
+        );
+
+        if (success) {
+            System.out.println("\nCylinder returned successfully!");
+        } else {
+            System.out.println("\nFailed to process cylinder return.");
         }
     }
 

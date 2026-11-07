@@ -2,12 +2,9 @@
 package com.scc.dao;
 
 import java.sql.*;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import com.scc.model.Transaction;
-import java.util.ArrayList;
 
 
 public class TransactionDao {
@@ -482,7 +479,7 @@ public class TransactionDao {
                              conn.prepareStatement(updateNewCylinder)) {
 
                     pstmt.setInt(1, customerId);
-                    pstmt.setInt(2, newCylinderId);
+                    pstmt.setDouble(2, oldDepositPaid);
                     pstmt.setInt(3, newCylinderId);
 
                     if (pstmt.executeUpdate() != 1) {
@@ -539,4 +536,215 @@ public class TransactionDao {
             return false;
         }
     }
+
+    public boolean processReturn(
+            int customerId,
+            int userId,
+            int cylinderId) {
+
+        String findCylinderSql = """
+                SELECT condition, deposit_paid
+                FROM lpg_cylinders
+                WHERE cylinder_id = ?
+                AND customer_id = ?
+                AND status = 'DELIVERED'
+                """;
+
+        // Create return transaction
+        String insertTransactionSql = """
+                INSERT INTO transactions
+                (customer_id, user_id, transaction_type,
+                 amount, deposit_amount, exchange_credit)
+                VALUES (?, ?, 'RETURN', ?, ?, 0)
+                """;
+
+// Record returned cylinder
+        String insertDetailSql = """
+                INSERT INTO transaction_details
+                (transaction_id, cylinder_id, detail_type,
+                 unit_price, quantity)
+                VALUES (?, ?, 'RETURN', 0, 1)
+                """;
+
+// Refund customer's deposit balance
+        String updateCustomerSql = """
+                UPDATE customers
+                SET deposit_balance = deposit_balance - ?
+                WHERE customer_id = ?
+                AND deposit_balance >= ?
+                """;
+
+// Update returned cylinder
+        String updateCylinderSql = """
+                UPDATE lpg_cylinders
+                SET customer_id = NULL,
+                    condition = ?,
+                    status = ?,
+                    deposit_paid = 0
+                WHERE cylinder_id = ?
+                AND customer_id = ?
+                AND status = 'DELIVERED'
+                """;
+
+// Record activity log
+        String logSql = """
+            INSERT INTO activity_logs
+            (user_id, action_type, description)
+            VALUES (?, 'CYLINDER_RETURN', ?)
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+
+            conn.setAutoCommit(false);
+
+            try {
+                // 1. Find the customer's cylinder
+                String condition;
+                double depositPaid;
+
+                try (PreparedStatement pstmt =
+                             conn.prepareStatement(findCylinderSql)) {
+
+                    pstmt.setInt(1, cylinderId);
+                    pstmt.setInt(2, customerId);
+
+                    try (ResultSet rs = pstmt.executeQuery()) {
+
+                        if (!rs.next()) {
+                            System.out.println(
+                                    "Cylinder not found or not assigned to this customer."
+                            );
+                            conn.rollback();
+                            return false;
+                        }
+
+                        condition = rs.getString("condition");
+                        depositPaid = rs.getDouble("deposit_paid");
+                    }
+                }
+
+                System.out.println("Cylinder found!");
+                System.out.println("Previous condition: " + condition);
+
+                Scanner scanner = new Scanner(System.in);
+
+                System.out.println("\n===== CYLINDER CONDITION CHECK =====");
+                System.out.println("[1] GOOD");
+                System.out.println("[2] NEEDS MAINTENANCE");
+                int choice = scanner.nextInt();
+
+                switch (choice) {
+                    case 1 -> condition = "GOOD";
+                    case 2 -> condition = "NEEDS MAINTENANCE";
+                    default -> {
+                        System.out.println("Invalid condition selected.");
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                String newStatus = condition.equals("GOOD")
+                        ? "AVAILABLE"
+                        : "MAINTENANCE";
+
+                // 1. Create return transaction
+                int transactionId;
+
+                try (PreparedStatement pstmt = conn.prepareStatement(
+                        insertTransactionSql,
+                        Statement.RETURN_GENERATED_KEYS)) {
+
+                    pstmt.setInt(1, customerId);
+                    pstmt.setInt(2, userId);
+                    pstmt.setDouble(3, 0);
+                    pstmt.setDouble(4, depositPaid);
+
+                    pstmt.executeUpdate();
+
+                    try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                        if (!keys.next()) {
+                            throw new SQLException("Could not generate transaction ID.");
+                        }
+
+                        transactionId = keys.getInt(1);
+                    }
+                }
+
+// 2. Record transaction detail
+                try (PreparedStatement pstmt =
+                             conn.prepareStatement(insertDetailSql)) {
+
+                    pstmt.setInt(1, transactionId);
+                    pstmt.setInt(2, cylinderId);
+                    pstmt.executeUpdate();
+                }
+
+// 3. Refund customer's deposit
+                if (depositPaid > 0) {
+
+                    try (PreparedStatement pstmt =
+                                 conn.prepareStatement(updateCustomerSql)) {
+
+                        pstmt.setDouble(1, depositPaid);
+                        pstmt.setInt(2, customerId);
+                        pstmt.setDouble(3, depositPaid);
+
+                        if (pstmt.executeUpdate() != 1) {
+                            throw new SQLException("Customer deposit refund failed.");
+                        }
+                    }
+                }
+
+// 4. Return cylinder to inventory
+                try (PreparedStatement pstmt =
+                             conn.prepareStatement(updateCylinderSql)) {
+
+                    pstmt.setString(1, condition);
+                    pstmt.setString(2, newStatus);
+                    pstmt.setInt(3, cylinderId);
+                    pstmt.setInt(4, customerId);
+
+                    if (pstmt.executeUpdate() != 1) {
+                        throw new SQLException("Cylinder return update failed.");
+                    }
+                }
+
+// 5. Record activity log
+                String description =
+                        "Customer ID " + customerId
+                                + " returned Cylinder ID " + cylinderId
+                                + ". Deposit refunded: ₱" + depositPaid
+                                + ". New status: " + newStatus;
+
+                try (PreparedStatement pstmt =
+                             conn.prepareStatement(logSql)) {
+
+                    pstmt.setInt(1, userId);
+                    pstmt.setString(2, description);
+                    pstmt.executeUpdate();
+                }
+
+// 6. Commit everything
+                conn.commit();
+
+                System.out.println("Cylinder successfully returned!");
+                System.out.println("Deposit refunded: ₱" + depositPaid);
+                System.out.println("New cylinder status: " + newStatus);
+
+                return true;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+
+            } finally {
+                conn.setAutoCommit(true);
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Return error: " + e.getMessage());
+            return false;
+        }
+    }
+
 }
