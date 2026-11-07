@@ -3,6 +3,7 @@ import java.util.Scanner;
 import com.scc.dao.DatabaseInitializer;
 import com.scc.dao.UserDao;
 import com.scc.ui.Authentication;
+import com.scc.dao.CylinderDao;
 
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
@@ -12,6 +13,9 @@ public class Main {
     public static void main(String[] args){
 
         DatabaseInitializer.initialize();
+
+        CylinderDao cylinderDao = new CylinderDao();
+        cylinderDao.initializeInventory();
 
         Scanner scanner = new Scanner(System.in);
         UserDao userDao = new UserDao();
